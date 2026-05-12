@@ -71,7 +71,8 @@ jobs:
           "
 
       - name: Publish to GitHub Packages
-        run: npm publish --access public
+        # dist/ already built and downloaded — skip prepublishOnly (needs bun)
+        run: npm publish --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -98,6 +99,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        # dist/ already built and downloaded — skip prepublishOnly (needs bun)
+        run: npm publish --access public --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
