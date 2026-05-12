@@ -49,4 +49,5 @@ tmp-*.json
 */.last-run.json
 *.debug.json
 outputs
-audio-intelligence.db
+*.db
+

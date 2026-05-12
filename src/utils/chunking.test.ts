@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { chunkText, estimateTokens } from '../src/utils/chunking.js';
+import { chunkText, estimateTokens } from './chunking.js';
 
 describe('chunkText', () => {
   test('returns single chunk when text is small', () => {
