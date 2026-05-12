@@ -9,6 +9,8 @@ jobs:
   test:
     name: Test & Build
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,19 +30,25 @@ jobs:
       - name: Build tests
         run: bun test ./tests/
 
+      - name: Get version
+        id: version
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "value=$PKG_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $PKG_VERSION"
+
       - name: Upload dist
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
 
-  publish:
-    name: Publish (if version changed)
+  publish-npm:
+    name: Publish → npm
     needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
       id-token: write
 
     steps:
@@ -56,60 +64,76 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Get package version
-        id: version
+      - name: Check if version already on npm
+        id: check
         run: |
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          echo "value=$PKG_VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Version: $PKG_VERSION"
-
-      - name: Check npm registry
-        id: npm_check
-        run: |
-          VERSION=${{ steps.version.outputs.value }}
+          VERSION=${{ needs.test.outputs.version }}
           PUBLISHED=$(npm view future-audio-intelligence@$VERSION version 2>/dev/null || echo "")
           if [ "$PUBLISHED" = "$VERSION" ]; then
-            echo "skip=true"  >> $GITHUB_OUTPUT
-            echo "⏭️  npm: v$VERSION already published — skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⏭️  v$VERSION already on npm — skipping"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
-            echo "🚀 npm: v$VERSION not found — will publish"
-          fi
-
-      - name: Check GitHub Packages registry
-        id: gpr_check
-        run: |
-          VERSION=${{ steps.version.outputs.value }}
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
-          PUBLISHED=$(npm view @$OWNER/future-audio-intelligence@$VERSION version \
-            --registry https://npm.pkg.github.com 2>/dev/null || echo "")
-          if [ "$PUBLISHED" = "$VERSION" ]; then
-            echo "skip=true"  >> $GITHUB_OUTPUT
-            echo "⏭️  GitHub Packages: v$VERSION already published — skipping"
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "🚀 GitHub Packages: v$VERSION not found — will publish"
+            echo "🚀 v$VERSION not on npm — publishing"
           fi
 
       - name: Publish to npm
-        if: steps.npm_check.outputs.skip == 'false'
+        if: steps.check.outputs.skip == 'false'
         run: npm publish --access public --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish to GitHub Packages
-        if: steps.gpr_check.outputs.skip == 'false'
-        run: |
-          # Append GitHub Packages auth to the .npmrc npm is actually reading
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> $NPM_CONFIG_USERCONFIG
+  publish-gpr:
+    name: Publish → GitHub Packages
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
 
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@${{ github.repository_owner }}'
+
+      - name: Check if version already on GitHub Packages
+        id: check
+        run: |
+          VERSION=${{ needs.test.outputs.version }}
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          PUBLISHED=$(npm view @$OWNER/future-audio-intelligence@$VERSION version 2>/dev/null || echo "")
+          if [ "$PUBLISHED" = "$VERSION" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⏭️  v$VERSION already on GitHub Packages — skipping"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "🚀 v$VERSION not on GitHub Packages — publishing"
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set scoped package name
+        if: steps.check.outputs.skip == 'false'
+        run: |
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            const owner = '${{ github.repository_owner }}'.toLowerCase();
-            pkg.name = '@' + owner + '/' + pkg.name.replace(/^@[^/]+\//, '');
+            pkg.name = '@${{ github.repository_owner }}/' + pkg.name.replace(/^@[^/]+\//, '');
             pkg.publishConfig = { registry: 'https://npm.pkg.github.com' };
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
-          npm publish --access public --ignore-scripts
+
+      - name: Publish to GitHub Packages
+        if: steps.check.outputs.skip == 'false'
+        run: npm publish --access public --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
