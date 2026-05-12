@@ -61,7 +61,7 @@ export class DeepgramTranscriber implements Transcriber {
     const url = `${this.baseURL}/listen?${params.toString()}`;
 
     // URL sources: pass through, Deepgram fetches directly.
-    let body: string | Uint8Array;
+    let body: BodyInit;
     let contentType: string;
 
     if (source.type === 'url') {
@@ -69,7 +69,7 @@ export class DeepgramTranscriber implements Transcriber {
       contentType = 'application/json';
     } else {
       const audio = await resolveAudio(source);
-      body = new Uint8Array(audio.data);
+      body = audio.data.buffer as ArrayBuffer;
       contentType = audio.mimeType;
     }
 
