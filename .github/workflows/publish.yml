@@ -1,11 +1,11 @@
-name: Publish Package
+name: CI / Publish
 
 on:
   push:
     branches:
-      - master        # GitHub Packages on every push to master
+      - master     # run tests only
     tags:
-      - 'v*'          # npm registry on version tags (v1.0.0, etc.)
+      - 'v*'       # test + publish on version tags
 
 jobs:
   test:
@@ -21,16 +21,17 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Unit tests (no dist required)
+      - name: Unit tests
         run: bun test ./src/
 
       - name: Build
         run: bun run build
 
-      - name: Build tests (imports from dist/)
+      - name: Build tests
         run: bun test ./tests/
 
-      - name: Upload dist
+      - name: Upload dist artifact
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -40,7 +41,7 @@ jobs:
     name: Publish → GitHub Packages
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: read
       packages: write
@@ -59,8 +60,7 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@${{ github.repository_owner }}'
 
-      - name: Set package name for GitHub registry
-        # GitHub Packages requires scoped name: @owner/package-name
+      - name: Set scoped name for GitHub Packages
         run: |
           node -e "
             const fs = require('fs');
@@ -71,19 +71,18 @@ jobs:
           "
 
       - name: Publish to GitHub Packages
-        # dist/ already built and downloaded — skip prepublishOnly (needs bun)
         run: npm publish --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-npm:
-    name: Publish → npm registry
+    name: Publish → npm
     needs: test
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: read
-      id-token: write   # for npm provenance
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -99,7 +98,6 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: Publish to npm
-        # dist/ already built and downloaded — skip prepublishOnly (needs bun)
         run: npm publish --access public --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
