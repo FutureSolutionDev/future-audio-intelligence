@@ -11,6 +11,7 @@
       "devDependencies": {
         "@types/bun": "latest",
         "@types/uuid": "^11.0.0",
+        "future-audio-intelligence": "latest",
         "hono": "^4.12.18",
         "typescript": "^5.4.0",
       },
@@ -24,6 +25,8 @@
     "@types/uuid": ["@types/uuid@11.0.0", "", { "dependencies": { "uuid": "*" } }, "sha512-HVyk8nj2m+jcFRNazzqyVKiZezyhDKrGUA3jlEcg/nZ6Ms+qHwocba1Y/AaVaznJTAM9xpdFSh+ptbNrhOGvZA=="],
 
     "bun-types": ["bun-types@1.3.13", "", { "dependencies": { "@types/node": "*" } }, "sha512-QXKeHLlOLqQX9LgYaHJfzdBaV21T63HhFJnvuRCcjZiaUDpbs5ED1MgxbMra71CsryN/1dAoXuJJJwIv/2drVA=="],
+
+    "future-audio-intelligence": ["future-audio-intelligence@1.0.0", "", { "dependencies": { "openai": "6.37.0", "uuid": "^14.0.0" } }, "sha512-t+blVASHSUapMCQCsoRgHh/xCOZPBm3TQoQ7b+xZ0j/hNauuKCJygCYRyIx+M0RA6ZCH+K/9r487CZyUPlAKgA=="],
 
     "hono": ["hono@4.12.18", "", {}, "sha512-RWzP96k/yv0PQfyXnWjs6zot20TqfpfsNXhOnev8d1InAxubW93L11/oNUc3tQqn2G0bSdAOBpX+2uDFHV7kdQ=="],
 

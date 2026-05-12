@@ -1,36 +1,26 @@
 /**
- * Smoke test for the published GitHub Package.
+ * Smoke test for the published npm package.
  *
  * Usage:
- *   GITHUB_TOKEN=ghp_xxx bun run scripts/smoke-test.ts
+ *   bun run smoke
  *
  * What it does:
  *   1. Creates a temp directory
- *   2. Installs @FutureSolutionDev/future-audio-intelligence from GitHub Packages
+ *   2. Installs future-audio-intelligence from npm (no token needed)
  *   3. Runs import + functional checks
- *   4. Cleans up
- *
- * Requires GITHUB_TOKEN with at least read:packages scope.
+ *   4. Cleans up automatically
  */
 
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
-import { join }    from 'node:path';
-import { tmpdir }  from 'node:os';
+import { join }     from 'node:path';
+import { tmpdir }   from 'node:os';
 import { execSync } from 'node:child_process';
 
-const PKG   = '@FutureSolutionDev/future-audio-intelligence';
-const TOKEN = process.env.GITHUB_TOKEN;
-
-if (!TOKEN) {
-  console.error('❌  GITHUB_TOKEN is required');
-  console.error('    export GITHUB_TOKEN=ghp_your_token_here');
-  process.exit(1);
-}
-
+const PKG     = 'future-audio-intelligence';
 const workDir = join(tmpdir(), `smoke-test-${Date.now()}`);
 
-function run(cmd: string, opts: { cwd?: string } = {}) {
-  return execSync(cmd, { stdio: 'inherit', cwd: opts.cwd ?? workDir });
+function run(cmd: string) {
+  return execSync(cmd, { stdio: 'inherit', cwd: workDir });
 }
 
 function cleanup() {
@@ -38,7 +28,7 @@ function cleanup() {
 }
 
 console.log(`\n📦 Smoke test — ${PKG}`);
-console.log(`📁 Working dir: ${workDir}\n`);
+console.log(`📁 Temp dir: ${workDir}\n`);
 
 // ── Setup ──────────────────────────────────────────────────────────────────────
 mkdirSync(workDir, { recursive: true });
@@ -49,13 +39,7 @@ writeFileSync(join(workDir, 'package.json'), JSON.stringify({
   type:    'module',
 }, null, 2));
 
-// .npmrc — authenticate with GitHub Packages
-writeFileSync(join(workDir, '.npmrc'), [
-  '@FutureSolutionDev:registry=https://npm.pkg.github.com',
-  `//npm.pkg.github.com/:_authToken=${TOKEN}`,
-].join('\n'));
-
-// smoke.mjs — the actual test script
+// ── smoke.mjs — test script that runs inside the temp dir ─────────────────────
 writeFileSync(join(workDir, 'smoke.mjs'), `
 import {
   AudioIntelligencePipeline,
@@ -93,106 +77,169 @@ function check(label, fn) {
   }
 }
 
+async function checkAsync(label, fn) {
+  try {
+    await fn();
+    console.log('  ✓', label);
+    pass++;
+  } catch (err) {
+    console.error('  ✗', label);
+    console.error('   ', err.message);
+    fail++;
+  }
+}
+
+// ── Exports ───────────────────────────────────────────────────────────────────
 console.log('\\n── Exports ──────────────────────────────────');
 
-check('AudioIntelligencePipeline is a class',  () => { if (typeof AudioIntelligencePipeline !== 'function') throw new Error('not a function'); });
-check('AutoFreeToPaidTranscriber is a class',  () => { if (typeof AutoFreeToPaidTranscriber !== 'function') throw new Error('not a function'); });
-check('AutoFreeToPaidSummarizer is a class',   () => { if (typeof AutoFreeToPaidSummarizer !== 'function') throw new Error('not a function'); });
-check('LocalOutputStore is a class',           () => { if (typeof LocalOutputStore !== 'function') throw new Error('not a function'); });
-check('SQLiteOutputStore is a class',          () => { if (typeof SQLiteOutputStore !== 'function') throw new Error('not a function'); });
-check('S3OutputStore is a class',              () => { if (typeof S3OutputStore !== 'function') throw new Error('not a function'); });
-check('createStorageFromEnv is a function',    () => { if (typeof createStorageFromEnv !== 'function') throw new Error('not a function'); });
-check('chunkText is a function',               () => { if (typeof chunkText !== 'function') throw new Error('not a function'); });
-check('estimateTokens is a function',          () => { if (typeof estimateTokens !== 'function') throw new Error('not a function'); });
+check('AudioIntelligencePipeline',    () => { if (typeof AudioIntelligencePipeline    !== 'function') throw new Error('missing'); });
+check('AutoFreeToPaidTranscriber',    () => { if (typeof AutoFreeToPaidTranscriber    !== 'function') throw new Error('missing'); });
+check('AutoFreeToPaidSummarizer',     () => { if (typeof AutoFreeToPaidSummarizer     !== 'function') throw new Error('missing'); });
+check('DeepgramTranscriber',          () => { if (typeof DeepgramTranscriber          !== 'function') throw new Error('missing'); });
+check('OpenAITranscriber',            () => { if (typeof OpenAITranscriber            !== 'function') throw new Error('missing'); });
+check('OpenAISummarizer',             () => { if (typeof OpenAISummarizer             !== 'function') throw new Error('missing'); });
+check('OpenRouterSummarizer',         () => { if (typeof OpenRouterSummarizer         !== 'function') throw new Error('missing'); });
+check('GeminiSummarizer',             () => { if (typeof GeminiSummarizer             !== 'function') throw new Error('missing'); });
+check('OpenAICompatibleSummarizer',   () => { if (typeof OpenAICompatibleSummarizer   !== 'function') throw new Error('missing'); });
+check('LocalOutputStore',             () => { if (typeof LocalOutputStore             !== 'function') throw new Error('missing'); });
+check('SQLiteOutputStore',            () => { if (typeof SQLiteOutputStore            !== 'function') throw new Error('missing'); });
+check('S3OutputStore',                () => { if (typeof S3OutputStore                !== 'function') throw new Error('missing'); });
+check('createStorageFromEnv',         () => { if (typeof createStorageFromEnv         !== 'function') throw new Error('missing'); });
+check('chunkText',                    () => { if (typeof chunkText                    !== 'function') throw new Error('missing'); });
+check('estimateTokens',               () => { if (typeof estimateTokens              !== 'function') throw new Error('missing'); });
+check('TranscriptionError',           () => { if (typeof TranscriptionError           !== 'function') throw new Error('missing'); });
+check('SummarizationError',           () => { if (typeof SummarizationError           !== 'function') throw new Error('missing'); });
+check('AudioIntelligenceError',       () => { if (typeof AudioIntelligenceError       !== 'function') throw new Error('missing'); });
 
+// ── Functional ────────────────────────────────────────────────────────────────
 console.log('\\n── Functional ───────────────────────────────');
 
-check('chunkText splits text correctly', () => {
-  const chunks = chunkText('A. B. C. D. E.'.repeat(100), { maxChars: 200 });
-  if (chunks.length < 2) throw new Error('expected multiple chunks');
-  for (const c of chunks) if (c.length > 200) throw new Error('chunk too large');
+check('chunkText splits long text', () => {
+  const chunks = chunkText('A. B. C. '.repeat(200), { maxChars: 200 });
+  if (chunks.length < 2) throw new Error('expected multiple chunks, got ' + chunks.length);
+  for (const c of chunks) if (c.length > 200) throw new Error('chunk too large: ' + c.length);
 });
 
 check('estimateTokens returns positive integer', () => {
   const n = estimateTokens('hello world');
-  if (typeof n !== 'number' || n <= 0) throw new Error('expected positive number');
+  if (typeof n !== 'number' || !Number.isInteger(n) || n <= 0) throw new Error('got: ' + n);
 });
 
-check('TranscriptionError has correct code', () => {
+check('TranscriptionError — code and provider', () => {
   const e = new TranscriptionError('test', 'deepgram');
-  if (e.code !== 'TRANSCRIPTION_FAILED') throw new Error('wrong code: ' + e.code);
-  if (e.provider !== 'deepgram') throw new Error('wrong provider');
+  if (e.code     !== 'TRANSCRIPTION_FAILED') throw new Error('wrong code: '     + e.code);
+  if (e.provider !== 'deepgram')             throw new Error('wrong provider: ' + e.provider);
+  if (!(e instanceof AudioIntelligenceError)) throw new Error('not instance of AudioIntelligenceError');
 });
 
-check('SummarizationError has correct code', () => {
+check('SummarizationError — code and provider', () => {
   const e = new SummarizationError('test', 'gemini');
-  if (e.code !== 'SUMMARIZATION_FAILED') throw new Error('wrong code: ' + e.code);
+  if (e.code     !== 'SUMMARIZATION_FAILED') throw new Error('wrong code: '     + e.code);
+  if (e.provider !== 'gemini')               throw new Error('wrong provider: ' + e.provider);
 });
 
-check('AutoFreeToPaidTranscriber throws on empty config', () => {
-  try { new AutoFreeToPaidTranscriber({}); throw new Error('should have thrown'); }
+check('AutoFreeToPaidTranscriber — throws on empty config', () => {
+  try   { new AutoFreeToPaidTranscriber({}); throw new Error('should have thrown'); }
   catch (e) { if (e.message === 'should have thrown') throw e; }
 });
 
-check('AutoFreeToPaidSummarizer throws on empty config', () => {
-  try { new AutoFreeToPaidSummarizer({}); throw new Error('should have thrown'); }
+check('AutoFreeToPaidSummarizer — throws on empty config', () => {
+  try   { new AutoFreeToPaidSummarizer({}); throw new Error('should have thrown'); }
   catch (e) { if (e.message === 'should have thrown') throw e; }
 });
 
-check('createStorageFromEnv returns LocalOutputStore by default', () => {
-  const old = process.env.AUDIO_STORAGE;
+check('createStorageFromEnv — local', () => {
+  const prev = process.env.AUDIO_STORAGE;
   process.env.AUDIO_STORAGE = 'local';
   try {
-    const store = createStorageFromEnv();
-    if (!(store instanceof LocalOutputStore)) throw new Error('expected LocalOutputStore, got ' + store.constructor.name);
+    const s = createStorageFromEnv();
+    if (!(s instanceof LocalOutputStore))
+      throw new Error('expected LocalOutputStore, got ' + s.constructor.name);
   } finally {
-    if (old === undefined) delete process.env.AUDIO_STORAGE;
-    else process.env.AUDIO_STORAGE = old;
+    prev === undefined ? delete process.env.AUDIO_STORAGE : (process.env.AUDIO_STORAGE = prev);
   }
 });
 
-check('createStorageFromEnv returns SQLiteOutputStore', () => {
-  const old = process.env.AUDIO_STORAGE;
+check('createStorageFromEnv — sqlite', () => {
+  const prev = process.env.AUDIO_STORAGE;
   process.env.AUDIO_STORAGE = 'sqlite';
   try {
-    const store = createStorageFromEnv();
-    if (!(store instanceof SQLiteOutputStore)) throw new Error('expected SQLiteOutputStore, got ' + store.constructor.name);
+    const s = createStorageFromEnv();
+    if (!(s instanceof SQLiteOutputStore))
+      throw new Error('expected SQLiteOutputStore, got ' + s.constructor.name);
   } finally {
-    if (old === undefined) delete process.env.AUDIO_STORAGE;
-    else process.env.AUDIO_STORAGE = old;
+    prev === undefined ? delete process.env.AUDIO_STORAGE : (process.env.AUDIO_STORAGE = prev);
   }
 });
 
-check('pipeline instantiates and processes with mock transcriber', async () => {
-  const mock = { name: 'mock', transcribe: async () => ({
-    text: 'مرحبا', language: 'ar', durationSec: 5,
-    usage: { durationSec: 5 }, provider: 'mock', model: 'v1',
-  })};
-  const p = new AudioIntelligencePipeline({ transcriber: mock });
-  const r = await p.process({ type: 'path', path: 'fake.mp3' });
-  if (r.transcription.text !== 'مرحبا') throw new Error('wrong text: ' + r.transcription.text);
-}).then?.(() => {});  // handle async
+check('createStorageFromEnv — throws on unknown backend', () => {
+  const prev = process.env.AUDIO_STORAGE;
+  process.env.AUDIO_STORAGE = 'unknown';
+  try {
+    try   { createStorageFromEnv(); throw new Error('should have thrown'); }
+    catch (e) { if (e.message === 'should have thrown') throw e; }
+  } finally {
+    prev === undefined ? delete process.env.AUDIO_STORAGE : (process.env.AUDIO_STORAGE = prev);
+  }
+});
 
-// Wait for async check
-await new Promise(r => setTimeout(r, 500));
+await checkAsync('pipeline — process with mock transcriber', async () => {
+  const mock = {
+    name: 'mock',
+    transcribe: async () => ({
+      text: 'مرحبا', language: 'ar', durationSec: 5,
+      usage: { durationSec: 5 }, provider: 'mock', model: 'v1',
+    }),
+  };
+  const pipeline = new AudioIntelligencePipeline({ transcriber: mock });
+  const result   = await pipeline.process({ type: 'path', path: 'fake.mp3' });
+  if (result.transcription.text !== 'مرحبا')
+    throw new Error('wrong text: ' + result.transcription.text);
+  if (result.saved !== undefined)
+    throw new Error('should not save without storage configured');
+});
 
+await checkAsync('LocalOutputStore — save + getById + list', async () => {
+  const { mkdirSync, rmSync } = await import('node:fs');
+  const { join }  = await import('node:path');
+  const { tmpdir } = await import('node:os');
+
+  const dir   = join(tmpdir(), 'pkg-smoke-' + Date.now());
+  const store  = new LocalOutputStore({ outputDir: dir });
+  const record = {
+    id: 'smoke-id-1', audioName: 'test', processedAt: new Date(),
+    transcription: { text: 'hello', provider: 'mock', model: 'v1' },
+  };
+
+  try {
+    await store.save(record);
+    const found = await store.getById('smoke-id-1');
+    if (!found)                        throw new Error('getById returned null');
+    if (found.id !== 'smoke-id-1')     throw new Error('wrong id: ' + found.id);
+    const list = await store.list();
+    if (list.length !== 1)             throw new Error('expected 1 record, got ' + list.length);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Result ────────────────────────────────────────────────────────────────────
 console.log('\\n─────────────────────────────────────────────');
-console.log(\`  \${pass} passed  \${fail} failed\`);
+console.log(\`  \${pass} passed  \${fail > 0 ? fail + ' FAILED' : '0 failed'}\`);
 if (fail > 0) process.exit(1);
 `);
 
-// ── Install ────────────────────────────────────────────────────────────────────
+// ── Install + Run ──────────────────────────────────────────────────────────────
 try {
-  console.log(`⬇️  Installing ${PKG}...`);
-  run(`npm install ${PKG} --legacy-peer-deps`);
+  console.log(`⬇️  Installing ${PKG} from npm...`);
+  run(`npm install ${PKG}`);
 
-  console.log('\n🧪 Running smoke tests...');
+  console.log('\n🧪 Running smoke tests...\n');
   run('node smoke.mjs');
 
   console.log('\n✅  All smoke tests passed\n');
-} catch (err) {
+} catch {
   console.error('\n❌  Smoke test failed\n');
-  cleanup();
   process.exit(1);
 } finally {
   cleanup();

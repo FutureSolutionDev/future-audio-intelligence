@@ -32,6 +32,7 @@
     "test:build": "bun test ./tests/",
     "test:all": "bun run build && bun test ./src/ && bun test ./tests/",
     "smoke": "bun run scripts/smoke-test.ts",
+    "integration": "bun run scripts/integration-test.ts",
     "example:basic": "bun run examples/basic.ts",
     "example:pipeline": "bun run examples/pipeline.ts",
     "prepublishOnly": "bun run build"
@@ -61,6 +62,7 @@
     "uuid": "^14.0.0"
   },
   "devDependencies": {
+    "future-audio-intelligence": "latest",
     "@types/bun": "latest",
     "@types/uuid": "^11.0.0",
     "hono": "^4.12.18",

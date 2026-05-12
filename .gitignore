@@ -50,4 +50,4 @@ tmp-*.json
 *.debug.json
 outputs
 *.db
-
+**/integration-output
