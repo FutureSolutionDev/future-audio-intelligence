@@ -69,7 +69,10 @@ export class DeepgramTranscriber implements Transcriber {
       contentType = 'application/json';
     } else {
       const audio = await resolveAudio(source);
-      body = audio.data.buffer as ArrayBuffer;
+      // Use Blob to avoid shared ArrayBuffer offset issues with Node.js Buffer slices.
+      // Explicitly copy into a clean ArrayBuffer to avoid SharedArrayBuffer type conflicts.
+      const ab = audio.data.buffer.slice(audio.data.byteOffset, audio.data.byteOffset + audio.data.byteLength) as ArrayBuffer;
+      body = new Blob([ab], { type: audio.mimeType });
       contentType = audio.mimeType;
     }
 

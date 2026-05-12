@@ -1,4 +1,8 @@
+import { createRequire } from 'node:module';
 import type { OutputRecord, OutputStore, SaveResult, ListOptions } from './types.js';
+
+// createRequire works in both Bun and Node.js ESM — unlike bare require().
+const _require = createRequire(import.meta.url);
 
 export interface SQLiteOutputStoreConfig {
   /** Path to the SQLite DB file. Default: ./audio-intelligence.db */
@@ -62,7 +66,7 @@ export class SQLiteOutputStore implements OutputStore {
     if (isBun) {
       // Bun built-in — no install needed.
       const pkg = 'bun:sqlite';
-      const { Database } = require(pkg) as typeof import('bun:sqlite');
+      const { Database } = _require(pkg) as typeof import('bun:sqlite');
       const db = new Database(this.dbPath, { create: true });
       db.run(CREATE_TABLE);
       this.db = db as unknown as SQLiteDB;
@@ -70,7 +74,7 @@ export class SQLiteOutputStore implements OutputStore {
       // Node.js — requires: npm i better-sqlite3
       let Database: any;
       try {
-        Database = require('better-sqlite3');
+        Database = _require('better-sqlite3');
       } catch {
         throw new Error(
           'SQLiteOutputStore on Node.js requires better-sqlite3:\n  npm i better-sqlite3',
