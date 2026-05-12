@@ -3,9 +3,7 @@ name: CI / Publish
 on:
   push:
     branches:
-      - master     # run tests only
-    tags:
-      - 'v*'       # test + publish on version tags
+      - master
 
 jobs:
   test:
@@ -30,59 +28,20 @@ jobs:
       - name: Build tests
         run: bun test ./tests/
 
-      - name: Upload dist artifact
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Upload dist
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
 
-  publish-gpr:
-    name: Publish → GitHub Packages
+  publish:
+    name: Publish (if version changed)
     needs: test
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: read
       packages: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@${{ github.repository_owner }}'
-
-      - name: Set scoped name for GitHub Packages
-        run: |
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.name = '@${{ github.repository_owner }}/' + pkg.name.replace(/^@[^/]+\//, '');
-            pkg.publishConfig = { registry: 'https://npm.pkg.github.com' };
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          "
-
-      - name: Publish to GitHub Packages
-        run: npm publish --access public --ignore-scripts
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  publish-npm:
-    name: Publish → npm
-    needs: test
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: read
-      id-token: write
+      id-token: write   # npm provenance
 
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +56,37 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Check if version already published on npm
+        id: check
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$PKG_VERSION" >> $GITHUB_OUTPUT
+
+          PUBLISHED=$(npm view future-audio-intelligence@$PKG_VERSION version 2>/dev/null || echo "")
+          if [ "$PUBLISHED" = "$PKG_VERSION" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⏭️  v$PKG_VERSION already on npm — skipping publish"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "🚀 v$PKG_VERSION not published yet — will publish"
+          fi
+
       - name: Publish to npm
+        if: steps.check.outputs.skip == 'false'
         run: npm publish --access public --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to GitHub Packages
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.name = '@${{ github.repository_owner }}/' + pkg.name.replace(/^@[^/]+\//, '');
+            pkg.publishConfig = { registry: 'https://npm.pkg.github.com' };
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+          npm publish --access public --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
