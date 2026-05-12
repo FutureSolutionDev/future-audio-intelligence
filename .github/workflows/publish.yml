@@ -101,6 +101,9 @@ jobs:
       - name: Publish to GitHub Packages
         if: steps.gpr_check.outputs.skip == 'false'
         run: |
+          # Append GitHub Packages auth to the .npmrc npm is actually reading
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> $NPM_CONFIG_USERCONFIG
+
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
