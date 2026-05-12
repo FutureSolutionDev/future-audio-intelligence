@@ -1,0 +1,21 @@
+{
+    "semi": true,
+    "useTabs": false,
+    "tabWidth": 1,
+    "singleQuote": false,
+    "bracketSpacing": true,
+    "trailingComma": "none",
+    "proseWrap": "always",
+    "printWidth": 100,
+    "endOfLine": "lf",
+    "jsxSingleQuote": false,
+    "overrides": [
+        {
+            "files": ["package.json", "package-lock.json"],
+            "options": {
+                "useTabs": false,
+                "tabWidth": 2
+            }
+        }
+    ]
+}

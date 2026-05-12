@@ -1,0 +1,62 @@
+{
+  "name": "future-audio-intelligence",
+  "version": "0.1.0",
+  "description": "Provider-agnostic audio transcription and summarization toolkit. Pluggable STT providers (OpenAI, Deepgram, Local Whisper) and LLM summarizers (Claude, OpenAI).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./transcribers": {
+      "types": "./dist/transcribers/index.d.ts",
+      "import": "./dist/transcribers/index.js"
+    },
+    "./summarizers": {
+      "types": "./dist/summarizers/index.d.ts",
+      "import": "./dist/summarizers/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "bun run --watch src/index.ts",
+    "test": "bun test",
+    "example:basic": "bun run examples/basic.ts",
+    "example:pipeline": "bun run examples/pipeline.ts",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "speech-to-text",
+    "transcription",
+    "whisper",
+    "deepgram",
+    "summarization",
+    "arabic",
+    "audio",
+    "ai",
+    "openrouter",
+    "gemini",
+    "claude",
+    "openai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "hono": "^4.12.18",
+    "openai": "^4.100.0",
+    "uuid": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/uuid": "^11.0.0",
+    "typescript": "^5.4.0"
+  }
+}
