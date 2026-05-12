@@ -1,10 +1,17 @@
-import { describe, expect, test, mock } from 'bun:test';
+import { describe, expect, test, afterEach } from 'bun:test';
+import { rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { AudioIntelligencePipeline } from './pipeline.js';
 import { LocalOutputStore } from './storage/local.js';
-import { rmSync, existsSync } from 'node:fs';
 import type { Transcriber, TranscriptionResult, Summarizer, SummaryResult } from './types/index.js';
 
-const TEST_DIR = import.meta.dir + '/../.test-outputs-pipeline';
+// Isolated temp directory — cleaned up after each test regardless of pass/fail.
+const TEST_DIR = join(tmpdir(), `ai-pipeline-test-${process.pid}`);
+
+afterEach(() => {
+  if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true, force: true });
+});
 
 // ── Stubs ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +45,10 @@ function makeSummarizer(result = MOCK_SUMMARY): Summarizer {
   return { name: 'mock', summarize: async () => result };
 }
 
+function makeStorage() {
+  return new LocalOutputStore({ outputDir: TEST_DIR });
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('AudioIntelligencePipeline', () => {
@@ -51,7 +62,7 @@ describe('AudioIntelligencePipeline', () => {
 
     expect(result.transcription.text).toBe(MOCK_TRANSCRIPT.text);
     expect(result.summary?.summary).toBe(MOCK_SUMMARY.summary);
-    expect(result.saved).toBeUndefined(); // no storage configured
+    expect(result.saved).toBeUndefined();
   });
 
   test('process() skips summary when skipSummary is true', async () => {
@@ -81,17 +92,16 @@ describe('AudioIntelligencePipeline', () => {
 
   test('process() works without a summarizer', async () => {
     const pipeline = new AudioIntelligencePipeline({ transcriber: makeTranscriber() });
-    const result = await pipeline.process({ type: 'path', path: 'fake.mp3' });
+    const result   = await pipeline.process({ type: 'path', path: 'fake.mp3' });
     expect(result.transcription).toBeDefined();
     expect(result.summary).toBeUndefined();
   });
 
-  test('process() saves to storage and returns saved result', async () => {
-    const storage = new LocalOutputStore({ outputDir: TEST_DIR });
+  test('process() saves to storage and returns saved result with uuid v4', async () => {
     const pipeline = new AudioIntelligencePipeline({
       transcriber: makeTranscriber(),
       summarizer:  makeSummarizer(),
-      storage,
+      storage:     makeStorage(),
     });
 
     const result = await pipeline.process({ type: 'path', path: 'meeting.mp3' });
@@ -100,38 +110,33 @@ describe('AudioIntelligencePipeline', () => {
     expect(result.saved!.backend).toBe('local');
     expect(result.saved!.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    ); // uuid v4
+    );
 
-    // verify it's actually retrievable
-    const record = await storage.getById(result.saved!.id);
+    const record = await makeStorage().getById(result.saved!.id);
     expect(record).not.toBeNull();
-    expect(record!.audioName).toBe('meeting'); // stripped extension
-
-    if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
+    expect(record!.audioName).toBe('meeting');
   });
 
   describe('storeOptions', () => {
     test('strips segments, words, raw by default', async () => {
-      const storage = new LocalOutputStore({ outputDir: TEST_DIR });
+      const storage  = makeStorage();
       const pipeline = new AudioIntelligencePipeline({
         transcriber: makeTranscriber(),
         summarizer:  makeSummarizer(),
         storage,
       });
 
-      const result = await pipeline.process({ type: 'path', path: 'a.mp3' });
-      const record = await storage.getById(result.saved!.id);
+      const { saved } = await pipeline.process({ type: 'path', path: 'a.mp3' });
+      const record    = await storage.getById(saved!.id);
 
       expect(record!.transcription.segments).toBeUndefined();
       expect(record!.transcription.words).toBeUndefined();
       expect(record!.transcription.raw).toBeUndefined();
       expect(record!.summary?.raw).toBeUndefined();
-
-      if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
     });
 
     test('includeSegments stores segments', async () => {
-      const storage = new LocalOutputStore({ outputDir: TEST_DIR });
+      const storage  = makeStorage();
       const pipeline = new AudioIntelligencePipeline({
         transcriber:  makeTranscriber(),
         summarizer:   makeSummarizer(),
@@ -139,17 +144,15 @@ describe('AudioIntelligencePipeline', () => {
         storeOptions: { includeSegments: true },
       });
 
-      const result = await pipeline.process({ type: 'path', path: 'a.mp3' });
-      const record = await storage.getById(result.saved!.id);
+      const { saved } = await pipeline.process({ type: 'path', path: 'a.mp3' });
+      const record    = await storage.getById(saved!.id);
 
       expect(record!.transcription.segments).toBeDefined();
       expect(record!.transcription.segments!.length).toBe(1);
-
-      if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
     });
 
     test('includeRaw stores raw responses', async () => {
-      const storage = new LocalOutputStore({ outputDir: TEST_DIR });
+      const storage  = makeStorage();
       const pipeline = new AudioIntelligencePipeline({
         transcriber:  makeTranscriber(),
         summarizer:   makeSummarizer(),
@@ -157,61 +160,45 @@ describe('AudioIntelligencePipeline', () => {
         storeOptions: { includeRaw: true },
       });
 
-      const result = await pipeline.process({ type: 'path', path: 'a.mp3' });
-      const record = await storage.getById(result.saved!.id);
+      const { saved } = await pipeline.process({ type: 'path', path: 'a.mp3' });
+      const record    = await storage.getById(saved!.id);
 
       expect(record!.transcription.raw).toBeDefined();
       expect(record!.summary?.raw).toBeDefined();
-
-      if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
     });
   });
 
   describe('audio source name extraction', () => {
     test('extracts name from path source', async () => {
-      const storage = new LocalOutputStore({ outputDir: TEST_DIR });
-      const pipeline = new AudioIntelligencePipeline({
-        transcriber: makeTranscriber(),
-        storage,
-      });
+      const storage  = makeStorage();
+      const pipeline = new AudioIntelligencePipeline({ transcriber: makeTranscriber(), storage });
 
-      const result = await pipeline.process({ type: 'path', path: '/data/my-meeting.mp3' });
-      const record = await storage.getById(result.saved!.id);
+      const { saved } = await pipeline.process({ type: 'path', path: '/data/my-meeting.mp3' });
+      const record    = await storage.getById(saved!.id);
       expect(record!.audioName).toBe('my-meeting');
-
-      if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
     });
 
     test('extracts name from URL source', async () => {
-      const storage = new LocalOutputStore({ outputDir: TEST_DIR });
-      const pipeline = new AudioIntelligencePipeline({
-        transcriber: makeTranscriber(),
-        storage,
+      const storage  = makeStorage();
+      const pipeline = new AudioIntelligencePipeline({ transcriber: makeTranscriber(), storage });
+
+      const { saved } = await pipeline.process({
+        type: 'url',
+        url:  'https://cdn.example.com/calls/weekly.mp3?v=1',
       });
-
-      const result = await pipeline.process({ type: 'url', url: 'https://cdn.example.com/calls/weekly.mp3?v=1' });
-      const record = await storage.getById(result.saved!.id);
+      const record = await storage.getById(saved!.id);
       expect(record!.audioName).toBe('weekly');
-
-      if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
     });
 
     test('extracts name from buffer source', async () => {
-      const storage = new LocalOutputStore({ outputDir: TEST_DIR });
-      const pipeline = new AudioIntelligencePipeline({
-        transcriber: makeTranscriber(),
-        storage,
-      });
+      const storage  = makeStorage();
+      const pipeline = new AudioIntelligencePipeline({ transcriber: makeTranscriber(), storage });
 
-      const result = await pipeline.process({
-        type: 'buffer',
-        data: Buffer.from(''),
-        filename: 'upload.wav',
+      const { saved } = await pipeline.process({
+        type: 'buffer', data: Buffer.from(''), filename: 'upload.wav',
       });
-      const record = await storage.getById(result.saved!.id);
+      const record = await storage.getById(saved!.id);
       expect(record!.audioName).toBe('upload');
-
-      if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
     });
   });
 });
@@ -251,13 +238,11 @@ describe('AutoFreeToPaidSummarizer constructor', () => {
     const summarizer = new AutoFreeToPaidSummarizer({
       openrouterApiKey: 'fake-key',
       geminiApiKey:     'fake-key',
-      logger: (msg) => logs.push(msg),
+      logger:           (msg) => logs.push(msg),
     });
 
-    // Both will fail (fake keys) — should throw SummarizationError after exhausting all
     await expect(summarizer.summarize('test text')).rejects.toThrow();
 
-    // Should have logged attempts
     expect(logs.some((l) => l.includes('attempt 1'))).toBe(true);
     expect(logs.some((l) => l.includes('attempt 2'))).toBe(true);
     expect(logs.some((l) => l.includes('failed'))).toBe(true);

@@ -1,10 +1,13 @@
-import { describe, expect, test, beforeEach, afterEach } from 'bun:test';
+import { describe, expect, test, afterEach } from 'bun:test';
 import { rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { LocalOutputStore } from './local.js';
 import type { OutputRecord } from './types.js';
 
-const TEST_DIR = join(import.meta.dir, '../../.test-outputs-local');
+// Each test suite run gets its own isolated directory inside os.tmpdir().
+// afterEach guarantees cleanup even when assertions fail.
+const TEST_DIR = join(tmpdir(), `ai-local-test-${process.pid}`);
 
 function makeRecord(overrides: Partial<OutputRecord> = {}): OutputRecord {
   return {
@@ -20,7 +23,7 @@ function makeRecord(overrides: Partial<OutputRecord> = {}): OutputRecord {
       model:       'nova-3',
     },
     summary: {
-      summary:  'نص قصير للاختبار',
+      summary:  'ملخص قصير',
       provider: 'gemini',
       model:    'gemini-2.5-flash',
       usage:    { inputTokens: 50, outputTokens: 20 },
@@ -30,17 +33,12 @@ function makeRecord(overrides: Partial<OutputRecord> = {}): OutputRecord {
 }
 
 describe('LocalOutputStore', () => {
-  let store: LocalOutputStore;
-
-  beforeEach(() => {
-    store = new LocalOutputStore({ outputDir: TEST_DIR });
-  });
-
   afterEach(() => {
-    if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
+    if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true, force: true });
   });
 
   test('save() creates a JSON file named by ID', async () => {
+    const store  = new LocalOutputStore({ outputDir: TEST_DIR });
     const record = makeRecord();
     const result = await store.save(record);
 
@@ -50,6 +48,7 @@ describe('LocalOutputStore', () => {
   });
 
   test('getById() returns the saved record', async () => {
+    const store  = new LocalOutputStore({ outputDir: TEST_DIR });
     const record = makeRecord();
     await store.save(record);
 
@@ -63,27 +62,29 @@ describe('LocalOutputStore', () => {
   });
 
   test('getById() returns null for unknown ID', async () => {
+    const store  = new LocalOutputStore({ outputDir: TEST_DIR });
     const result = await store.getById('non-existent-id');
     expect(result).toBeNull();
   });
 
-  test('list() returns all saved records sorted by date descending', async () => {
+  test('list() returns all records sorted by date descending', async () => {
+    const store = new LocalOutputStore({ outputDir: TEST_DIR });
     await store.save(makeRecord({ id: 'id-1', processedAt: new Date('2026-01-01T08:00:00Z') }));
     await store.save(makeRecord({ id: 'id-2', processedAt: new Date('2026-01-01T10:00:00Z') }));
     await store.save(makeRecord({ id: 'id-3', processedAt: new Date('2026-01-01T09:00:00Z') }));
 
     const all = await store.list();
     expect(all.length).toBe(3);
-    expect(all[0]!.id).toBe('id-2'); // most recent first
+    expect(all[0]!.id).toBe('id-2');
     expect(all[1]!.id).toBe('id-3');
     expect(all[2]!.id).toBe('id-1');
   });
 
   test('list() respects limit and offset', async () => {
+    const store = new LocalOutputStore({ outputDir: TEST_DIR });
     for (let i = 1; i <= 5; i++) {
       await store.save(makeRecord({ id: `id-${i}`, processedAt: new Date(`2026-01-0${i}T00:00:00Z`) }));
     }
-
     const page1 = await store.list({ limit: 2, offset: 0 });
     const page2 = await store.list({ limit: 2, offset: 2 });
     expect(page1.length).toBe(2);
@@ -92,12 +93,13 @@ describe('LocalOutputStore', () => {
   });
 
   test('list() returns empty array when dir does not exist', async () => {
-    const empty = new LocalOutputStore({ outputDir: TEST_DIR + '-nonexistent' });
-    const result = await empty.list();
+    const store  = new LocalOutputStore({ outputDir: TEST_DIR + '-nonexistent' });
+    const result = await store.list();
     expect(result).toEqual([]);
   });
 
   test('processedAt is restored as a Date object', async () => {
+    const store  = new LocalOutputStore({ outputDir: TEST_DIR });
     const record = makeRecord();
     await store.save(record);
     const found = await store.getById(record.id);
@@ -106,6 +108,7 @@ describe('LocalOutputStore', () => {
   });
 
   test('record without summary saves and retrieves correctly', async () => {
+    const store  = new LocalOutputStore({ outputDir: TEST_DIR });
     const record = makeRecord({ summary: undefined });
     await store.save(record);
     const found = await store.getById(record.id);

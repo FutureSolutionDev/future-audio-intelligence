@@ -28,7 +28,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "bun run --watch src/index.ts",
-    "test": "bun test",
+    "test": "bun test ./src/",
+    "test:build": "bun test ./tests/",
+    "test:all": "bun run build && bun test ./src/ && bun test ./tests/",
     "example:basic": "bun run examples/basic.ts",
     "example:pipeline": "bun run examples/pipeline.ts",
     "prepublishOnly": "bun run build"
