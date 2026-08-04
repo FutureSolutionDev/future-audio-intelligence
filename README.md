@@ -523,6 +523,14 @@ The workflow (`.github/workflows/publish.yml`) runs:
 
 ---
 
+## Community
+
+Want to take part — ideas, testing, or just following along?
+
+Join the Discord: **<https://discord.gg/v4ACAn5CKf>**
+
+---
+
 ## License
 
 MIT
